@@ -1,20 +1,42 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useState, useMemo } from "react";
 import { type Term } from "@shared/schema";
 import Header from "@/components/Header";
 import TermCard from "@/components/TermCard";
 import HotTermsBanner from "@/components/HotTermsBanner";
+import Pagination from "@/components/Pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const ITEMS_PER_PAGE = 9;
 
 export default function HomePage() {
   const [, setLocation] = useLocation();
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: terms, isLoading } = useQuery<Term[]>({
     queryKey: ["/api/terms"],
   });
 
+  const { paginatedTerms, totalPages } = useMemo(() => {
+    if (!terms) return { paginatedTerms: [], totalPages: 0 };
+    
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    
+    return {
+      paginatedTerms: terms.slice(startIndex, endIndex),
+      totalPages: Math.ceil(terms.length / ITEMS_PER_PAGE),
+    };
+  }, [terms, currentPage]);
+
   const handleTermClick = (termId: string) => {
     setLocation(`/term/${termId}`);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -43,26 +65,36 @@ export default function HomePage() {
         <div className="container mx-auto px-4 md:px-6 lg:px-8">
           <div className="mb-8">
             <h2 className="text-3xl font-semibold mb-2">所有术语</h2>
-            <p className="text-muted-foreground">按热度排序</p>
+            <p className="text-muted-foreground">按热度排序 · 第 {currentPage} 页，共 {totalPages} 页</p>
           </div>
 
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 9 }).map((_, i) => (
                 <Skeleton key={i} className="h-48 rounded-xl" data-testid={`skeleton-term-${i}`} />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-              {terms?.map((term, index) => (
-                <TermCard
-                  key={term.id}
-                  term={term}
-                  rank={index + 1}
-                  onClick={() => handleTermClick(term.id)}
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-12">
+                {paginatedTerms?.map((term, index) => (
+                  <TermCard
+                    key={term.id}
+                    term={term}
+                    rank={(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
+                    onClick={() => handleTermClick(term.id)}
+                  />
+                ))}
+              </div>
+              
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
                 />
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </main>
